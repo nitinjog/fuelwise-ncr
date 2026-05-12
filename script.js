@@ -59,9 +59,41 @@ const KNOWN_LOCATIONS = {
   },
 };
 
+const POPULAR_LOCATIONS = [
+  "Connaught Place, New Delhi",
+  "India Gate, New Delhi",
+  "Khan Market, New Delhi",
+  "Saket, New Delhi",
+  "Hauz Khas, New Delhi",
+  "Lajpat Nagar, New Delhi",
+  "Rajiv Chowk Metro Station, New Delhi",
+  "New Delhi Railway Station",
+  "Indira Gandhi International Airport, New Delhi",
+  "Akshardham, Delhi",
+  "Dwarka Sector 21, Delhi",
+  "Cyber Hub, Gurugram",
+  "MG Road Metro Station, Gurugram",
+  "Huda City Centre, Gurugram",
+  "Golf Course Road, Gurugram",
+  "Sohna Road, Gurugram",
+  "Sector 18, Noida",
+  "Noida City Centre",
+  "Botanical Garden, Noida",
+  "Film City, Noida",
+  "Greater Noida Pari Chowk",
+  "Sector 62, Noida",
+  "Vaishali, Ghaziabad",
+  "Indirapuram, Ghaziabad",
+  "Raj Nagar Extension, Ghaziabad",
+  "Faridabad Sector 15",
+  "Neelam Chowk, Faridabad",
+];
+
 const form = document.querySelector("#journey-form");
 const planButton = document.querySelector("#plan-button");
 const statusText = document.querySelector("#status");
+const startLocationInput = document.querySelector("#start-location");
+const endLocationInput = document.querySelector("#end-location");
 const vehicleType = document.querySelector("#vehicle-type");
 const fuelType = document.querySelector("#fuel-type");
 const mileageInput = document.querySelector("#mileage");
@@ -175,6 +207,89 @@ async function fetchJson(url, message, options = {}) {
 
 function normalizePlace(place) {
   return place.toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function populateLocationOptions(listId, options) {
+  const list = document.querySelector(`#${listId}`);
+  const uniqueOptions = [...new Set(options)].slice(0, 12);
+
+  list.replaceChildren(
+    ...uniqueOptions.map((option) => {
+      const element = document.createElement("option");
+      element.value = option;
+      return element;
+    })
+  );
+}
+
+function localLocationMatches(query) {
+  const normalizedQuery = normalizePlace(query);
+
+  if (!normalizedQuery) {
+    return POPULAR_LOCATIONS;
+  }
+
+  return POPULAR_LOCATIONS.filter((place) => normalizePlace(place).includes(normalizedQuery));
+}
+
+async function fetchLocationSuggestions(query) {
+  const params = new URLSearchParams({
+    q: query,
+    format: "jsonv2",
+    addressdetails: "1",
+    limit: "6",
+    countrycodes: "in",
+    bounded: "1",
+    viewbox: `${DELHI_NCR_BOUNDS.west},${DELHI_NCR_BOUNDS.north},${DELHI_NCR_BOUNDS.east},${DELHI_NCR_BOUNDS.south}`,
+  });
+  const data = await fetchJson(
+    `https://nominatim.openstreetmap.org/search?${params}`,
+    "Could not load location suggestions."
+  );
+
+  return data
+    .map((item) => ({
+      label: item.display_name,
+      lat: Number(item.lat),
+      lon: Number(item.lon),
+    }))
+    .filter(isInsideNcr)
+    .map((item) => item.label.split(",").slice(0, 4).join(","));
+}
+
+function attachLocationSuggest(input, listId) {
+  let searchTimer;
+  let requestId = 0;
+
+  const refreshLocalOptions = () => {
+    populateLocationOptions(listId, localLocationMatches(input.value));
+  };
+
+  input.addEventListener("focus", refreshLocalOptions);
+  input.addEventListener("input", () => {
+    const query = input.value.trim();
+    const currentRequestId = (requestId += 1);
+    window.clearTimeout(searchTimer);
+    populateLocationOptions(listId, localLocationMatches(query));
+
+    if (query.length < 3) {
+      return;
+    }
+
+    searchTimer = window.setTimeout(async () => {
+      try {
+        const apiSuggestions = await fetchLocationSuggestions(query);
+
+        if (currentRequestId === requestId) {
+          populateLocationOptions(listId, [...apiSuggestions, ...localLocationMatches(query)]);
+        }
+      } catch {
+        populateLocationOptions(listId, localLocationMatches(query));
+      }
+    }, 650);
+  });
+
+  refreshLocalOptions();
 }
 
 async function geocode(place) {
@@ -573,4 +688,6 @@ form.addEventListener("submit", planJourney);
 updateClock();
 setInterval(updateClock, 1000);
 updateMileageDefault();
+attachLocationSuggest(startLocationInput, "start-location-options");
+attachLocationSuggest(endLocationInput, "end-location-options");
 initializeMap();
