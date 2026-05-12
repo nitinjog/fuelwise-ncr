@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FuelWise NCR</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIINfQfAwfWrHW8uxZJQd1O79R7nwnc5tPQ="
+      crossorigin=""
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="planner" aria-labelledby="app-title">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Delhi NCR travel fuel planner</p>
+            <h1 id="app-title">FuelWise NCR</h1>
+          </div>
+          <div class="clock" aria-live="polite">
+            <span>System time</span>
+            <strong id="system-clock">--:--</strong>
+          </div>
+        </header>
+
+        <form id="journey-form" class="journey-form">
+          <div class="field span-2">
+            <label for="start-location">Starting location</label>
+            <input
+              id="start-location"
+              name="start"
+              type="search"
+              value="Connaught Place, New Delhi"
+              placeholder="Example: Connaught Place, New Delhi"
+              autocomplete="street-address"
+              required
+            />
+          </div>
+
+          <div class="field span-2">
+            <label for="end-location">End destination</label>
+            <input
+              id="end-location"
+              name="end"
+              type="search"
+              value="Cyber Hub, Gurugram"
+              placeholder="Example: Cyber Hub, Gurugram"
+              autocomplete="street-address"
+              required
+            />
+          </div>
+
+          <div class="field">
+            <label for="vehicle-type">Vehicle type</label>
+            <select id="vehicle-type" name="vehicleType">
+              <option value="car">4 wheeler</option>
+              <option value="twoWheeler">2 wheeler</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="vehicle-make">Make or brand in India</label>
+            <input id="vehicle-make" name="make" list="vehicle-makes" value="Maruti Suzuki" />
+            <datalist id="vehicle-makes">
+              <option value="Maruti Suzuki"></option>
+              <option value="Hyundai"></option>
+              <option value="Tata"></option>
+              <option value="Mahindra"></option>
+              <option value="Honda"></option>
+              <option value="Toyota"></option>
+              <option value="Kia"></option>
+              <option value="Hero"></option>
+              <option value="Honda 2Wheelers"></option>
+              <option value="TVS"></option>
+              <option value="Bajaj"></option>
+              <option value="Royal Enfield"></option>
+            </datalist>
+          </div>
+
+          <div class="field">
+            <label for="fuel-type">Fuel type</label>
+            <select id="fuel-type" name="fuelType">
+              <option value="petrol">Petrol</option>
+              <option value="diesel">Diesel</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="mileage">Expected mileage</label>
+            <div class="inline-input">
+              <input id="mileage" name="mileage" type="number" min="5" max="90" step="0.5" value="15" />
+              <span>km/l</span>
+            </div>
+          </div>
+
+          <button class="primary-action span-2" id="plan-button" type="submit">
+            Plan journey now
+          </button>
+        </form>
+
+        <p class="status" id="status" role="status" aria-live="polite">
+          Enter a route inside Delhi NCR to estimate current fuel use and a better start time.
+        </p>
+
+        <section class="workspace" aria-label="Journey results">
+          <div id="map" class="map" aria-label="Route map"></div>
+
+          <div class="results">
+            <section class="metrics-grid" aria-label="Route metrics">
+              <article class="metric">
+                <span>Distance</span>
+                <strong id="distance">--</strong>
+              </article>
+              <article class="metric">
+                <span>Travel time now</span>
+                <strong id="duration">--</strong>
+              </article>
+              <article class="metric">
+                <span>Traffic signals</span>
+                <strong id="signals">--</strong>
+              </article>
+              <article class="metric">
+                <span>Fuel now</span>
+                <strong id="fuel-now">--</strong>
+              </article>
+            </section>
+
+            <section class="insight-panel">
+              <div class="section-title">
+                <h2>Current Route Read</h2>
+                <span id="confidence">Waiting</span>
+              </div>
+              <div class="detail-list">
+                <div>
+                  <span>Traffic condition</span>
+                  <strong id="traffic-condition">--</strong>
+                </div>
+                <div>
+                  <span>Road condition</span>
+                  <strong id="road-condition">--</strong>
+                </div>
+                <div>
+                  <span>Stoppage time</span>
+                  <strong id="stoppage-time">--</strong>
+                </div>
+                <div>
+                  <span>Air quality context</span>
+                  <strong id="air-quality">--</strong>
+                </div>
+              </div>
+            </section>
+
+            <section class="recommendation">
+              <div class="section-title">
+                <h2>Best Fuel-Saving Start</h2>
+                <span id="best-badge">--</span>
+              </div>
+              <p id="best-time">Run an estimate to compare the next 12 hours.</p>
+              <div class="savings-row">
+                <div>
+                  <span>Fuel saved</span>
+                  <strong id="time-fuel-saving">--</strong>
+                </div>
+                <div>
+                  <span>Cost saved</span>
+                  <strong id="time-cost-saving">--</strong>
+                </div>
+              </div>
+            </section>
+
+            <section class="comparison">
+              <div class="section-title">
+                <h2>Mode Comparison</h2>
+              </div>
+              <div class="comparison-grid">
+                <article>
+                  <span>Switch to 2 wheeler</span>
+                  <strong id="two-wheeler-saving">--</strong>
+                </article>
+                <article>
+                  <span>Use public transport</span>
+                  <strong id="public-saving">--</strong>
+                </article>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="timeline" aria-label="Start time comparison">
+          <div class="section-title">
+            <h2>Next 12 Hours</h2>
+            <span>historical trend model</span>
+          </div>
+          <div id="timeline" class="timeline-grid"></div>
+        </section>
+
+        <section class="notes" aria-label="Data sources and suggestions">
+          <h2>Data Sources</h2>
+          <p>
+            Uses OpenStreetMap Nominatim for geocoding, OSRM for route distance and base duration,
+            Overpass API for mapped red-light counts, and Open-Meteo Air Quality for route context.
+            Live traffic and true historical traffic are estimated with a local Delhi NCR time-of-day
+            model because free public APIs rarely expose reliable live or historical congestion data
+            without keys.
+          </p>
+          <p>
+            Useful next additions: metro-first routing, EV/CNG support, toll and parking estimates,
+            user-specific mileage history, and a backend cache to respect public API rate limits.
+          </p>
+        </section>
+      </section>
+    </main>
+
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script src="script.js"></script>
+  </body>
+</html>
