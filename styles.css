@@ -218,6 +218,15 @@ select:focus {
   border-radius: 8px;
 }
 
+.map-fallback {
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  color: var(--muted);
+  font-weight: 800;
+  text-align: center;
+}
+
 .results {
   display: grid;
   gap: 14px;

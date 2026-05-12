@@ -26,6 +26,39 @@ const TRAFFIC_BY_HOUR = [
   0.98, 1.03, 1.12, 1.24, 1.42, 1.68, 1.78, 1.52, 1.18, 0.94, 0.82, 0.72,
 ];
 
+const KNOWN_LOCATIONS = {
+  "connaught place": {
+    label: "Connaught Place, New Delhi, Delhi, India",
+    lat: 28.6315,
+    lon: 77.2167,
+  },
+  "cyber hub": {
+    label: "Cyber Hub, DLF Cyber City, Gurugram, Haryana, India",
+    lat: 28.495,
+    lon: 77.089,
+  },
+  "cyberhub": {
+    label: "Cyber Hub, DLF Cyber City, Gurugram, Haryana, India",
+    lat: 28.495,
+    lon: 77.089,
+  },
+  "india gate": {
+    label: "India Gate, New Delhi, Delhi, India",
+    lat: 28.6129,
+    lon: 77.2295,
+  },
+  "igi airport": {
+    label: "Indira Gandhi International Airport, New Delhi, Delhi, India",
+    lat: 28.5562,
+    lon: 77.1,
+  },
+  "noida sector 18": {
+    label: "Sector 18, Noida, Uttar Pradesh, India",
+    lat: 28.5708,
+    lon: 77.3261,
+  },
+};
+
 const form = document.querySelector("#journey-form");
 const planButton = document.querySelector("#plan-button");
 const statusText = document.querySelector("#status");
@@ -53,18 +86,31 @@ const fields = {
   timeline: document.querySelector("#timeline"),
 };
 
-const map = L.map("map", {
-  zoomControl: true,
-  scrollWheelZoom: true,
-}).setView([28.6139, 77.209], 10);
-
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom: 19,
-  attribution: "&copy; OpenStreetMap contributors",
-}).addTo(map);
-
+let map;
 let routeLayer;
-let markerLayer = L.layerGroup().addTo(map);
+let markerLayer;
+
+function initializeMap() {
+  const mapElement = document.querySelector("#map");
+
+  if (!window.L) {
+    mapElement.classList.add("map-fallback");
+    mapElement.textContent = "Map preview unavailable. Route estimates still work.";
+    return;
+  }
+
+  map = L.map("map", {
+    zoomControl: true,
+    scrollWheelZoom: true,
+  }).setView([28.6139, 77.209], 10);
+
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap contributors",
+  }).addTo(map);
+
+  markerLayer = L.layerGroup().addTo(map);
+}
 
 function setStatus(message, isError = false) {
   statusText.textContent = message;
@@ -127,35 +173,58 @@ async function fetchJson(url, message, options = {}) {
   return response.json();
 }
 
+function normalizePlace(place) {
+  return place.toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+}
+
 async function geocode(place) {
-  const params = new URLSearchParams({
-    q: `${place}, Delhi NCR, India`,
-    format: "jsonv2",
-    addressdetails: "1",
-    limit: "1",
-    countrycodes: "in",
-  });
+  const known = KNOWN_LOCATIONS[normalizePlace(place)];
 
-  const data = await fetchJson(
-    `https://nominatim.openstreetmap.org/search?${params}`,
-    `Could not locate "${place}". Try a more specific Delhi NCR landmark.`
-  );
-
-  if (!data.length) {
-    throw new Error(`Could not locate "${place}". Try a more specific Delhi NCR landmark.`);
+  if (known) {
+    return known;
   }
 
-  const location = {
-    label: data[0].display_name,
-    lat: Number(data[0].lat),
-    lon: Number(data[0].lon),
-  };
+  const queries = [
+    place,
+    `${place}, Delhi`,
+    `${place}, New Delhi`,
+    `${place}, Gurugram`,
+    `${place}, Noida`,
+    `${place}, Faridabad`,
+    `${place}, Ghaziabad`,
+  ];
 
-  if (!isInsideNcr(location)) {
-    throw new Error(`"${place}" appears outside Delhi NCR. Please enter a Delhi NCR route.`);
+  for (const query of queries) {
+    const params = new URLSearchParams({
+      q: query,
+      format: "jsonv2",
+      addressdetails: "1",
+      limit: "5",
+      countrycodes: "in",
+      bounded: "1",
+      viewbox: `${DELHI_NCR_BOUNDS.west},${DELHI_NCR_BOUNDS.north},${DELHI_NCR_BOUNDS.east},${DELHI_NCR_BOUNDS.south}`,
+    });
+
+    const data = await fetchJson(
+      `https://nominatim.openstreetmap.org/search?${params}`,
+      `Could not locate "${place}". Try a more specific Delhi NCR landmark.`
+    );
+    const match = data
+      .map((item) => ({
+        label: item.display_name,
+        lat: Number(item.lat),
+        lon: Number(item.lon),
+      }))
+      .find(isInsideNcr);
+
+    if (match) {
+      return match;
+    }
+
+    await delay(350);
   }
 
-  return location;
+  throw new Error(`Could not locate "${place}" inside Delhi NCR. Try adding city, sector, or landmark.`);
 }
 
 async function getRoute(start, end) {
@@ -347,6 +416,10 @@ function confidenceLabel(signalCount, airQuality) {
 }
 
 function renderMap(route, start, end, signals) {
+  if (!map || !markerLayer) {
+    return;
+  }
+
   const coordinates = route.geometry.coordinates.map(([lon, lat]) => [lat, lon]);
   markerLayer.clearLayers();
 
@@ -500,3 +573,4 @@ form.addEventListener("submit", planJourney);
 updateClock();
 setInterval(updateClock, 1000);
 updateMileageDefault();
+initializeMap();
